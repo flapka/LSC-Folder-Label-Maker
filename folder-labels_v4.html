@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Folder Label Maker — ArchivesSpace EAD</title>
+<style>
+  :root{
+    --bg:#f7f6f2;
+    --panel:#fffefb;
+    --ink:#1f1d1a;
+    --muted:#6b6660;
+    --line:#ddd8ce;
+    --accent:#5a5346;
+    --accent-soft:#eae5d9;
+    --warn:#8a6d1f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  header{
+    padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel);
+    display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;
+  }
+  header h1{font-size:19px;margin:0;font-weight:600;letter-spacing:.01em}
+  header .status{color:var(--muted);font-size:14px}
+  #app{display:flex;align-items:flex-start;gap:0;min-height:calc(100vh - 56px)}
+  #controls{
+    width:340px;flex:0 0 340px;padding:18px 20px 60px;border-right:1px solid var(--line);
+    background:var(--panel);height:calc(100vh - 56px);overflow-y:auto;position:sticky;top:0;
+  }
+  #main{flex:1 1 auto;padding:22px;overflow-x:auto}
+  fieldset{border:1px solid var(--line);border-radius:6px;padding:12px 14px 14px;margin:0 0 16px}
+  legend{font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);padding:0 6px}
+  label{display:block;font-size:14px;margin:9px 0 3px;color:var(--ink)}
+  .hint{font-size:13px;color:var(--muted);margin:6px 0 0;line-height:1.45}
+  input[type=text],input[type=number],select{
+    width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:4px;
+    background:#fff;font:15px/1.4 inherit;color:var(--ink);
+  }
+  input[type=number]{width:100%}
+  .row{display:flex;gap:8px}
+  .row>div{flex:1}
+  .check{display:flex;align-items:center;gap:8px;margin:8px 0;font-size:14px}
+  .check input{margin:0}
+  button{
+    font:15px inherit;padding:7px 13px;border:1px solid var(--line);border-radius:4px;
+    background:var(--accent-soft);color:var(--ink);cursor:pointer;
+  }
+  button:hover{background:#e0dacb}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.primary:hover{background:#463f34}
+  button.link{background:none;border:none;color:var(--accent);text-decoration:underline;padding:2px 4px;font-size:13px}
+  #drop{
+    border:2px dashed var(--line);border-radius:8px;padding:22px 14px;text-align:center;
+    color:var(--muted);font-size:14px;background:#fdfcf8;cursor:pointer;
+  }
+  #drop.over{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+
+  /* start-slot picker */
+  .slotgrid{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:8px}
+  .slotgrid div{
+    border:1px solid var(--line);border-radius:3px;height:19px;font-size:11px;line-height:17px;
+    text-align:center;color:var(--muted);cursor:pointer;background:#fff;
+  }
+  .slotgrid div.used{background:#f0ede4;color:#b3ada2}
+  .slotgrid div.first{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+  /* folder selection list */
+  #picker{max-height:300px;overflow-y:auto;border:1px solid var(--line);border-radius:4px;background:#fff;padding:6px 8px;font-size:13px}
+  #picker .boxhead{font-weight:600;margin:8px 0 3px;display:flex;justify-content:space-between;align-items:center}
+  #picker .boxhead:first-child{margin-top:0}
+  #picker .item{display:flex;gap:6px;align-items:flex-start;padding:1px 0}
+  #picker .item span{flex:1;min-width:0}
+
+  /* review */
+  /* level rows */
+  .lvl{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+  .lvl:last-child{border-bottom:none}
+  .lvl input[type=checkbox]{margin:0}
+  .lvl .nm{flex:1;min-width:0;font-size:14px}
+  .lvl .nm small{display:block;color:var(--muted);font-size:12px}
+  .lvl input[type=number]{width:52px;padding:3px 5px;text-align:center}
+  .lvl.off .nm{color:var(--muted)}
+  #budget b{color:var(--ink)}
+  #budget.over b{color:#a33}
+
+  #review{margin-top:6px;font-size:13px;color:var(--muted)}
+  #review .note{padding:5px 0;border-bottom:1px solid var(--line)}
+  #review .note:last-child{border-bottom:none}
+  #review b{color:var(--warn);font-weight:600}
+
+  /* ---------- sheets ---------- */
+  #sheets{transform-origin:top left}
+  .sheet{
+    position:relative;width:8.5in;height:11in;background:#fff;margin:0 0 26px;
+    box-shadow:0 1px 5px rgba(0,0,0,.13);
+  }
+  .label{
+    position:absolute;display:flex;overflow:hidden;
+    font-family:Helvetica,Arial,sans-serif;color:#000;
+  }
+  .label .lblock{
+    display:flex;flex-direction:column;justify-content:space-between;flex:0 0 auto;
+  }
+  .label .lmain div{white-space:nowrap}
+  .label .ao{color:#8a8a8a;white-space:nowrap}
+  .label .rblock{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;justify-content:flex-start}
+  .label .rblock div{white-space:nowrap;overflow:hidden}
+  .label .coll{font-weight:600}
+  .label .series{font-style:italic}
+  .outline .label{outline:1px dashed #c9c4b8;outline-offset:-1px}
+  .empty-note{color:var(--muted);padding:40px 10px;font-size:15px}
+
+  @media print{
+    header,#controls,.noprint{display:none !important}
+    body{background:#fff}
+    #app{display:block}
+    #main{padding:0;overflow:visible}
+    #sheets{transform:none !important}
+    .sheet{box-shadow:none;margin:0;page-break-after:always;break-after:page}
+    .sheet:last-child{page-break-after:auto;break-after:auto}
+  }
+  @page{size:8.5in 11in;margin:0}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Folder Label Maker</h1>
+  <span class="status" id="status">No file loaded</span>
+</header>
+
+<div id="app">
+<aside id="controls">
+
+  <fieldset>
+    <legend>Source</legend>
+    <div id="drop">Drop an ArchivesSpace EAD file here<br><button class="link" type="button">or choose a file</button></div>
+    <input type="file" id="file" accept=".xml,text/xml,application/xml" style="display:none">
+  </fieldset>
+
+  <fieldset>
+    <legend>Collection</legend>
+    <label for="collNo">Collection number (on label)</label>
+    <input type="text" id="collNo" placeholder="e.g. LSC 2358">
+    <label for="collTitle">Collection title (on label)</label>
+    <input type="text" id="collTitle" placeholder="e.g. Irina Kosmovska Collection">
+    <p class="hint">Both are derived from the EAD and editable. Shorten the title here if truncation reads badly.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Type</legend>
+    <label for="fontFamily">Typeface</label>
+    <select id="fontFamily">
+      <option value="Helvetica, Arial, sans-serif" selected>Helvetica / Arial</option>
+      <option value="&quot;Times New Roman&quot;, Times, serif">Times New Roman</option>
+      <option value="Georgia, serif">Georgia</option>
+      <option value="Garamond, &quot;EB Garamond&quot;, &quot;Adobe Garamond Pro&quot;, serif">Garamond</option>
+      <option value="Verdana, Geneva, sans-serif">Verdana</option>
+      <option value="&quot;Courier New&quot;, Courier, monospace">Courier New</option>
+    </select>
+    <p class="hint">Only fonts installed on this machine will print. Sizes are re-measured when you switch, so check the review panel afterwards.</p>
+    <label for="fontSize">Body size (points)</label>
+    <input type="number" id="fontSize" value="10" min="6" max="14" step="0.5">
+    <div class="check"><input type="checkbox" id="showAo" checked><label for="showAo" style="margin:0">Show ArchivesSpace object number</label></div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Levels of description</legend>
+    <div id="levels"><span class="hint">Load a file to see which levels it contains.</span></div>
+    <div id="budget" class="hint" style="margin-top:10px"></div>
+    <button type="button" class="link" id="resetLevels">Reset to defaults</button>
+  </fieldset>
+
+  <fieldset>
+    <legend>What to print</legend>
+    <label for="mode">Folders</label>
+    <select id="mode">
+      <option value="all">All folders</option>
+      <option value="select">Select specific folders…</option>
+    </select>
+    <div id="pickerWrap" style="display:none;margin-top:10px">
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <button type="button" class="link" id="selAll">Select all</button>
+        <button type="button" class="link" id="selNone">Select none</button>
+      </div>
+      <div id="picker"></div>
+    </div>
+    <label for="startSlot" style="margin-top:12px">Start at label position</label>
+    <div class="slotgrid" id="slotgrid"></div>
+    <p class="hint">Click the first unused label on a partly used sheet.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Sheet calibration</legend>
+    <div class="row">
+      <div><label for="offX">Nudge right (in)</label><input type="number" id="offX" value="0.03" step="0.01"></div>
+      <div><label for="offY">Nudge down (in)</label><input type="number" id="offY" value="0.03" step="0.01"></div>
+    </div>
+    <div class="check"><input type="checkbox" id="outline"><label for="outline" style="margin:0">Print outlines (test sheet)</label></div>
+    <details style="margin-top:8px">
+      <summary style="font-size:13px;color:var(--muted);cursor:pointer">Grid dimensions</summary>
+      <div class="row"><div><label for="mTop">Top margin</label><input type="number" id="mTop" value="0.5" step="0.01"></div>
+      <div><label for="mLeft">Left margin</label><input type="number" id="mLeft" value="0.15625" step="0.01"></div></div>
+      <div class="row"><div><label for="pCol">Column pitch</label><input type="number" id="pCol" value="4.1875" step="0.01"></div>
+      <div><label for="pRow">Row pitch</label><input type="number" id="pRow" value="1" step="0.01"></div></div>
+      <div class="row"><div><label for="lW">Label width</label><input type="number" id="lW" value="4" step="0.01"></div>
+      <div><label for="lH">Label height</label><input type="number" id="lH" value="0.875" step="0.01"></div></div>
+      <button type="button" class="link" id="resetGeom">Reset to defaults</button>
+    </details>
+    <p class="hint">Hollinger publishes no template for 12695. The nudge starts at <b>0.03 / 0.03</b>, the offset measured from printed test sheets against the real stock. If your printer feeds differently, print one outline sheet on plain paper, hold it to a label sheet, and adjust these two numbers until it lines up.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Print</legend>
+    <button class="primary" id="printBtn" type="button">Print…</button>
+    <label for="zoom" style="margin-top:12px">Screen preview</label>
+    <select id="zoom"><option value="1">100%</option><option value="0.85">85%</option><option value="0.7" selected>70%</option><option value="0.55">55%</option></select>
+    <p class="hint"><b>Chrome:</b> More settings → Margins: <b>None</b>, Scale: <b>100</b>, and untick Headers and footers.</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Review</legend>
+    <div id="review"><span class="hint">Nothing loaded yet.</span></div>
+  </fieldset>
+
+</aside>
+
+<main id="main">
+  <div id="sheets"><p class="empty-note">Drop an EAD file to begin.</p></div>
+</main>
+</div>
+
+<script>
+"use strict";
+
+/* ============================ helpers ============================ */
+const $ = id => document.getElementById(id);
+const kids = (el, name) => el ? Array.from(el.children).filter(c => c.localName === name) : [];
+const kid  = (el, name) => kids(el, name)[0] || null;
+const norm = s => (s || "").replace(/\s+/g, " ").trim();
+const textOf = el => el ? norm(el.textContent) : "";
+
+const mctx = document.createElement("canvas").getContext("2d");
+const PX_PER_IN = 96;
+let FAMILY = "Helvetica, Arial, sans-serif";   // set from the typeface selector before each render
+function fontStr(sizePt, weight, style){
+  return `${style || ""} ${weight || ""} ${sizePt}pt ${FAMILY}`.replace(/\s+/g," ").trim();
+}
+function measure(text, sizePt, weight, style){
+  mctx.font = fontStr(sizePt, weight, style);
+  return mctx.measureText(text).width;
+}
+
+/* ============================ EAD parsing ============================ */
+
+// "PASC-M.0084" -> "PASC-M 84";  "LSC.0768" -> "LSC 768"
+function normalizeCollectionNo(raw){
+  const s = norm(raw);
+  const i = s.lastIndexOf(".");
+  if (i < 0) return s;
+  const prefix = s.slice(0, i), tail = s.slice(i + 1);
+  if (!/^\d+$/.test(tail)) return s;
+  return prefix + " " + String(parseInt(tail, 10));
+}
+
+function stripTrailingPunct(s){ return norm(s).replace(/[.,;:]+$/, ""); }
+
+// "8-9" -> ["8","9"];  "8, 10" -> ["8","10"];  "8a" -> ["8a"]
+function expandFolderIndicator(raw){
+  const s = norm(raw);
+  if (!s) return [];
+  if (s.includes(",")) return s.split(",").flatMap(p => expandFolderIndicator(p));
+  const m = s.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+  if (m){
+    const a = parseInt(m[1], 10), b = parseInt(m[2], 10);
+    if (b > a && b - a < 100){
+      const out = [];
+      for (let i = a; i <= b; i++) out.push(String(i));
+      return out;
+    }
+  }
+  return [s];
+}
+
+function natKey(v){
+  const m = String(v).match(/^(\d+)(.*)$/);
+  return m ? [parseInt(m[1], 10), m[2]] : [Number.MAX_SAFE_INTEGER, String(v)];
+}
+function cmpNat(a, b){
+  const [an, as] = natKey(a), [bn, bs] = natKey(b);
+  if (an !== bn) return an - bn;
+  return as < bs ? -1 : as > bs ? 1 : 0;
+}
+
+function parseEAD(xmlText){
+  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+  if (doc.getElementsByTagName("parsererror").length) throw new Error("That file could not be parsed as XML.");
+  const root = doc.documentElement;
+  const archdesc = Array.from(root.children).find(c => c.localName === "archdesc");
+  if (!archdesc) throw new Error("No <archdesc> found — is this an ArchivesSpace EAD export?");
+  const did = kid(archdesc, "did");
+
+  const unitids = kids(did, "unitid");
+  const bare = unitids.find(u => !u.getAttribute("type"));
+  const collNoRaw = textOf(bare || unitids[0]);
+  const collTitle = textOf(kid(did, "unittitle"));
+
+  const records = [];
+  const notes = { skippedNoFolder: 0, oddChildType: 0 };
+
+  function isC(el){ return el.localName === "c" || /^c\d\d$/.test(el.localName); }
+
+  function walk(node, ancestry){
+    for (const c of Array.from(node.children).filter(isC)){
+      const d = kid(c, "did");
+      const level = (c.getAttribute("level") || "").toLowerCase();
+      const title = textOf(kid(d, "unittitle"));
+      const dates = kids(d, "unitdate").map(textOf).filter(Boolean).map(stripTrailingPunct).join(", ");
+      // some records carry two aspace_uri unitids: the live one, plus a legacy
+      // migrated id marked audience="internal". Prefer the live one.
+      const aoCands = kids(d, "unitid").filter(u => u.getAttribute("type") === "aspace_uri");
+      const aoEl = aoCands.find(u => u.getAttribute("audience") !== "internal") || aoCands[0];
+      const aoM = aoEl ? textOf(aoEl).match(/(\d+)\s*$/) : null;
+      const ao = aoM ? "ao" + aoM[1] : "";
+
+      // pair top containers with their child containers
+      const cons = kids(d, "container");
+      const byId = {};
+      cons.forEach(x => { const id = x.getAttribute("id"); if (id) byId[id] = x; });
+      const instances = [];
+      for (const x of cons){
+        const pid = x.getAttribute("parent");
+        if (!pid) continue;                       // this is a top container
+        const p = byId[pid];
+        if (!p || p.getAttribute("parent")) continue;   // orphan or grandchild
+        const t = (x.getAttribute("type") || "").toLowerCase();
+        if (t && !t.startsWith("folder")) notes.oddChildType++;
+        instances.push({ box: textOf(p), folder: textOf(x) });
+      }
+
+      const rec = {
+        level, title, dates, ao,
+        chain: ancestry.map(a => ({ level: a.level, title: a.title })),
+        instances
+      };
+      if (instances.length) records.push(rec);
+      else if (level === "file" || level === "item") notes.skippedNoFolder++;
+
+      walk(c, ancestry.concat([{ level, title }]));
+    }
+  }
+
+  const dsc = kid(archdesc, "dsc");
+  if (dsc) walk(dsc, []);
+
+  return { collNoRaw, collNo: normalizeCollectionNo(collNoRaw), collTitle, records, notes };
+}
+
+/* ============ turn records into merged, sorted label units ============ */
+function buildLabels(parsed){
+  const units = [];
+  const review = [];
+  let expandedCount = 0;
+
+  for (const rec of parsed.records){
+    for (const inst of rec.instances){
+      const parts = expandFolderIndicator(inst.folder);
+      if (parts.length > 1) expandedCount++;
+      parts.forEach((f, i) => {
+        units.push({
+          box: inst.box,
+          folder: f,
+          title: rec.title,
+          dates: rec.dates,
+          suffix: parts.length > 1 ? `(${i + 1} of ${parts.length})` : "",
+          ao: rec.ao,
+          chain: rec.chain
+        });
+      });
+    }
+  }
+
+  // merge units sharing one physical folder
+  const map = new Map();
+  for (const u of units){
+    const key = u.box + "" + u.folder;
+    if (!map.has(key)) map.set(key, { box: u.box, folder: u.folder, entries: [] });
+    map.get(key).entries.push(u);
+  }
+
+  const labels = Array.from(map.values());
+  labels.sort((a, b) => cmpNat(a.box, b.box) || cmpNat(a.folder, b.folder));
+
+  const merged = labels.filter(l => l.entries.length > 1);
+  if (expandedCount) review.push(`<b>${expandedCount}</b> record${expandedCount>1?"s":""} spanned a folder range and ${expandedCount>1?"were":"was"} split into individual labels, numbered “(1 of n)”.`);
+  if (merged.length){
+    const detail = merged.slice(0, 6).map(m => `b. ${m.box} / f. ${m.folder} (${m.entries.length})`).join(", ");
+    review.push(`<b>${merged.length}</b> folder${merged.length>1?"s hold":" holds"} more than one described object; their titles were combined: ${detail}${merged.length>6?", …":""}.`);
+  }
+  if (parsed.notes.skippedNoFolder) review.push(`<b>${parsed.notes.skippedNoFolder}</b> file/item record${parsed.notes.skippedNoFolder>1?"s have":" has"} no folder container and produced no label.`);
+  if (parsed.notes.oddChildType) review.push(`<b>${parsed.notes.oddChildType}</b> child container${parsed.notes.oddChildType>1?"s were":" was"} typed as something other than “folder” and treated as a folder anyway.`);
+
+  return { labels, review };
+}
+
+/* ============================ text fitting ============================ */
+function wrapLines(text, maxPx, sizePt, weight, style){
+  mctx.font = fontStr(sizePt, weight, style);
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let cur = "";
+  for (const word of words){
+    const t = cur ? cur + " " + word : word;
+    if (!cur || mctx.measureText(t).width <= maxPx) cur = t;
+    else { lines.push(cur); cur = word; }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [""];
+}
+
+function truncOneLine(text, maxPx, sizePt, weight, style){
+  const t = String(text);
+  if (!t) return { line: "", cut: false };
+  if (measure(t, sizePt, weight, style) <= maxPx) return { line: t, cut: false };
+  let lo = 0, hi = t.length;
+  while (lo < hi){
+    const mid = Math.ceil((lo + hi) / 2);
+    const cand = t.slice(0, mid).replace(/[\s,;:.]+$/, "") + "…";
+    if (measure(cand, sizePt, weight, style) <= maxPx) lo = mid; else hi = mid - 1;
+  }
+  return { line: t.slice(0, lo).replace(/[\s,;:.]+$/, "") + "…", cut: true };
+}
+
+// keep `tail` (date, "(1 of 2)", "[and N other items]") intact; shorten `head`
+function fitWithTail(head, tail, maxPx, sizePt, allowedLines){
+  const full = head + tail;
+  let lines = wrapLines(full, maxPx, sizePt);
+  if (lines.length <= allowedLines) return { lines, cut: false };
+  let lo = 0, hi = head.length, best = null;
+  while (lo <= hi){
+    const mid = Math.floor((lo + hi) / 2);
+    const cand = head.slice(0, mid).replace(/[\s,;:.]+$/, "") + "…" + tail;
+    const ls = wrapLines(cand, maxPx, sizePt);
+    if (ls.length <= allowedLines){ best = ls; lo = mid + 1; } else hi = mid - 1;
+  }
+  if (!best) best = wrapLines("…" + tail, maxPx, sizePt).slice(0, allowedLines);
+  return { lines: best, cut: true };
+}
+
+function entryTail(e){
+  return (e.dates ? ", " + e.dates : "") + (e.suffix ? " " + e.suffix : "");
+}
+
+// wrap into at most `allowed` lines, truncating the tail of the text if need be
+function fitToLines(text, maxPx, sizePt, allowed, weight, style){
+  const lines = wrapLines(text, maxPx, sizePt, weight, style);
+  if (lines.length <= allowed) return { lines, cut: false };
+  let lo = 0, hi = text.length, best = null;
+  while (lo <= hi){
+    const mid = Math.floor((lo + hi) / 2);
+    const cand = text.slice(0, mid).replace(/[\s,;:.]+$/, "") + "…";
+    const ls = wrapLines(cand, maxPx, sizePt, weight, style);
+    if (ls.length <= allowed){ best = ls; lo = mid + 1; } else hi = mid - 1;
+  }
+  return { lines: best || ["…"], cut: true };
+}
+
+/* ---- levels of description ---- */
+const LEVEL_NAMES = {
+  collection:"Collection", recordgrp:"Record Group", subgrp:"Sub-Group", fonds:"Fonds",
+  subfonds:"Sub-Fonds", series:"Series", subseries:"Sub-Series", file:"File", item:"Item",
+  class:"Class", otherlevel:"Other level"
+};
+function prettyLevel(level, ord){
+  const base = LEVEL_NAMES[level] || (level ? level.charAt(0).toUpperCase() + level.slice(1) : "Level");
+  return ord > 1 ? `${base} (${ord}${ord === 2 ? "nd" : ord === 3 ? "rd" : "th"} level)` : base;
+}
+// ancestry -> keyed rungs, disambiguating repeated levels (subseries inside subseries)
+function chainKeys(chain){
+  const seen = {}, out = [];
+  (chain || []).forEach((a, i) => {
+    if (!a.title) return;
+    seen[a.level] = (seen[a.level] || 0) + 1;
+    out.push({
+      key: a.level + (seen[a.level] > 1 ? "#" + seen[a.level] : ""),
+      level: a.level, ord: seen[a.level], title: a.title, depth: i
+    });
+  });
+  return out;
+}
+function deriveLevelRows(labels){
+  const info = new Map();
+  labels.forEach(l => {
+    chainKeys(l.entries[0].chain).forEach(k => {
+      if (!info.has(k.key)) info.set(k.key, { key: k.key, name: prettyLevel(k.level, k.ord), count: 0, dsum: 0 });
+      const r = info.get(k.key); r.count++; r.dsum += k.depth;
+    });
+  });
+  const anc = Array.from(info.values())
+    .map(r => ({ key: r.key, name: r.name, count: r.count, depth: r.dsum / r.count }))
+    .sort((a, b) => a.depth - b.depth);
+  return [{ key: "collection", name: "Collection title", count: labels.length }]
+    .concat(anc)
+    .concat([{ key: "folder", name: "Folder title", count: labels.length }]);
+}
+
+const LEADING = 1.1;
+function lineBudget(sizePt, labelHIn, padIn){
+  const usable = (labelHIn - padIn * 2) * 72;
+  return Math.max(1, Math.min(5, Math.floor(usable / (sizePt * LEADING))));
+}
+
+const DEFAULT_ALLOC = {
+  5: { 5:[1,1,1,1,1], 4:[1,1,1,2], 3:[1,2,2], 2:[2,3], 1:[5] },
+  4: { 4:[1,1,1,1],   3:[1,1,2],   2:[2,2],   1:[4] },
+  3: { 3:[1,1,1],     2:[1,2],     1:[3] },
+  2: { 2:[1,1],       1:[2] },
+  1: { 1:[1] }
+};
+function applyDefaults(rows, budget){
+  const table = (DEFAULT_ALLOC[budget] || {})[rows.length];
+  if (table){ rows.forEach((r, i) => { r.on = true; r.lines = table[i]; }); return; }
+  // more rungs than the label can hold: keep collection + folder, then the shallowest
+  rows.forEach(r => { r.on = false; r.lines = 1; });
+  const keep = [rows[0], rows[rows.length - 1]];
+  for (let i = 1; i < rows.length - 1 && keep.length < budget; i++) keep.push(rows[i]);
+  keep.forEach(r => r.on = true);
+  rows[rows.length - 1].lines += Math.max(0, budget - keep.length);
+}
+
+function composeLabel(label, cfg){
+  const size = cfg.size;
+  const rightPx = cfg.rightIn * PX_PER_IN;
+  const stats = { collCut: false, ancCut: false, folderCut: false, collapsed: false };
+  const entries = label.entries;
+
+  const byKey = {};
+  chainKeys(entries[0].chain).forEach(k => byKey[k.key] = k.title);
+
+  const rows = cfg.levels.filter(r => r.on);
+  const blocks = [];
+  let carry = 0;
+
+  for (const r of rows){
+    if (r.key === "folder") continue;
+    const text = r.key === "collection" ? cfg.collTitle : (byKey[r.key] || "");
+    if (!text){ carry += r.lines; continue; }          // level absent here — spare line flows down
+    const isColl = r.key === "collection";
+    const weight = isColl ? "600" : "";
+    const style  = isColl ? "" : "italic";
+    const res = fitToLines(text, rightPx, size, r.lines, weight, style);
+    blocks.push({ cls: isColl ? "coll" : "series", lines: res.lines });
+    carry += r.lines - res.lines.length;
+    if (res.cut){ if (isColl) stats.collCut = true; else stats.ancCut = true; }
+  }
+
+  const folderRow = rows.find(r => r.key === "folder");
+  if (folderRow){
+    const allowed = folderRow.lines + carry;
+    let folderLines;
+    const joined = entries.map(e => e.title + entryTail(e)).join("; ");
+    const tryJoined = wrapLines(joined, rightPx, size);
+    if (tryJoined.length <= allowed){
+      folderLines = tryJoined;
+    } else if (entries.length > 1){
+      const n = entries.length - 1;
+      const tail = entryTail(entries[0]) + ` [and ${n} other item${n > 1 ? "s" : ""}]`;
+      const r2 = fitWithTail(entries[0].title, tail, rightPx, size, allowed);
+      folderLines = r2.lines; stats.collapsed = true; stats.folderCut = r2.cut;
+    } else {
+      const r2 = fitWithTail(entries[0].title, entryTail(entries[0]), rightPx, size, allowed);
+      folderLines = r2.lines; stats.folderCut = r2.cut;
+    }
+    blocks.push({ cls: "ftitle", lines: folderLines });
+  }
+
+  const aos = [...new Set(entries.map(e => e.ao).filter(Boolean))];
+  const aoText = aos.length ? aos[0] + (aos.length > 1 ? `[+${aos.length - 1}]` : "") : "";
+
+  return { blocks, aoText, stats };
+}
+
+/* ============================ rendering ============================ */
+const state = { parsed: null, labels: [], review: [], selected: null, startSlot: 0, levels: null, budget: null };
+
+function clampLevels(budget){
+  const rows = state.levels;
+  if (!rows) return;
+  const folder = rows.find(r => r.key === "folder");
+  const reserve = (folder && folder.on) ? 1 : 0;
+  let used = 0;
+  for (const r of rows){
+    if (r.key === "folder" || !r.on) continue;
+    r.lines = Math.max(1, Math.min(5, Math.round(r.lines || 1)));
+    const room = budget - reserve - used;
+    if (room <= 0){ r.on = false; continue; }
+    if (r.lines > room) r.lines = room;
+    used += r.lines;
+  }
+  if (folder && folder.on) folder.lines = Math.max(1, Math.min(budget - used, Math.round(folder.lines || 1)));
+}
+
+let levelSig = "";
+function renderLevelPanel(budget){
+  const host = $("levels"), rows = state.levels;
+  if (!rows){ host.innerHTML = '<span class="hint">Load a file to see which levels it contains.</span>'; $("budget").textContent = ""; return; }
+  const sig = rows.map(r => r.key).join("|");
+  if (sig !== levelSig){
+    levelSig = sig;
+    host.innerHTML = "";
+    rows.forEach(r => {
+      const div = document.createElement("div");
+      div.className = "lvl";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.onchange = () => { r.on = cb.checked; render(); };
+      const nm = document.createElement("div");
+      nm.className = "nm";
+      const scope = (r.key === "collection" || r.key === "folder")
+        ? "every label"
+        : `${r.count} of ${state.labels.length} labels`;
+      nm.innerHTML = `${esc(r.name)}<small>${scope}</small>`;
+      const num = document.createElement("input");
+      num.type = "number"; num.min = 1; num.max = 5; num.step = 1;
+      num.onchange = () => { r.lines = Math.max(1, Math.min(5, +num.value || 1)); render(); };
+      div.appendChild(cb); div.appendChild(nm); div.appendChild(num);
+      div._cb = cb; div._num = num;
+      host.appendChild(div);
+    });
+  }
+  Array.from(host.children).forEach((div, i) => {
+    const r = rows[i];
+    if (!r || !div._cb) return;
+    div._cb.checked = r.on;
+    div._num.value = r.lines;
+    div._num.disabled = !r.on;
+    div.classList.toggle("off", !r.on);
+  });
+  const total = rows.filter(r => r.on).reduce((a, r) => a + r.lines, 0);
+  const b = $("budget");
+  b.innerHTML = `Lines used: <b>${total}</b> of <b>${budget}</b> that fit at ${esc($("fontSize").value)}pt.`;
+  b.classList.toggle("over", total > budget);
+}
+
+function geom(){
+  return {
+    mTop: +$("mTop").value, mLeft: +$("mLeft").value,
+    pCol: +$("pCol").value, pRow: +$("pRow").value,
+    lW: +$("lW").value, lH: +$("lH").value,
+    offX: +$("offX").value, offY: +$("offY").value
+  };
+}
+
+function labelMetrics(g, sizePt){
+  const padIn   = 0.045;
+  const leftIn  = 0.86;
+  const gutIn   = 0.08;
+  return {
+    padIn, leftIn, gutIn,
+    rightIn: g.lW - padIn * 2 - leftIn - gutIn,
+    size: sizePt
+  };
+}
+
+function render(){
+  const host = $("sheets");
+  if (!state.parsed){ host.innerHTML = '<p class="empty-note">Drop an EAD file to begin.</p>'; return; }
+
+  const g = geom();
+  FAMILY = $("fontFamily").value;
+  const size = +$("fontSize").value || 10;
+  const m = labelMetrics(g, size);
+  const budget = lineBudget(size, g.lH, m.padIn);
+  if (state.levels && state.budget !== budget){ applyDefaults(state.levels, budget); state.budget = budget; }
+  clampLevels(budget);
+  renderLevelPanel(budget);
+
+  const cfg = { size, rightIn: m.rightIn, collTitle: $("collTitle").value.trim(), levels: state.levels || [] };
+  const showAo = $("showAo").checked;
+  const collNo = $("collNo").value.trim();
+
+  const chosen = state.parsed && $("mode").value === "select" && state.selected
+    ? state.labels.filter((_, i) => state.selected[i])
+    : state.labels;
+
+  const tally = { coll: 0, series: 0, folder: 0, total: chosen.length };
+  const composed = chosen.map(l => {
+    const c = composeLabel(l, cfg);
+    if (c.stats.collCut) tally.coll++;
+    if (c.stats.ancCut) tally.series++;
+    if (c.stats.folderCut) tally.folder++;
+    return { label: l, c };
+  });
+
+  // slots: blanks for the used part of the first sheet
+  const slots = new Array(state.startSlot).fill(null).concat(composed);
+  const sheetCount = Math.max(1, Math.ceil(slots.length / 20));
+
+  host.innerHTML = "";
+  for (let s = 0; s < sheetCount; s++){
+    const sheet = document.createElement("div");
+    sheet.className = "sheet" + ($("outline").checked ? " outline" : "");
+    for (let i = 0; i < 20; i++){
+      const item = slots[s * 20 + i];
+      const row = Math.floor(i / 2), col = i % 2;
+      const el = document.createElement("div");
+      el.className = "label";
+      el.style.left   = (g.mLeft + col * g.pCol + g.offX) + "in";
+      el.style.top    = (g.mTop + row * g.pRow + g.offY) + "in";
+      el.style.width  = g.lW + "in";
+      el.style.height = g.lH + "in";
+      el.style.padding = m.padIn + "in";
+      el.style.fontFamily = FAMILY;
+      if (!item){ sheet.appendChild(el); continue; }
+
+      const { label, c } = item;
+      const lb = document.createElement("div");
+      lb.className = "lblock";
+      lb.style.width = m.leftIn + "in";
+      lb.style.marginRight = m.gutIn + "in";
+      lb.style.fontSize = size + "pt";
+      lb.style.lineHeight = String(LEADING);
+      const lmain = document.createElement("div");
+      lmain.className = "lmain";
+      lmain.innerHTML =
+        `<div style="font-weight:600">${esc(collNo)}</div>` +
+        `<div>Box ${esc(label.box)}</div>` +
+        `<div>f. ${esc(label.folder)}</div>`;
+      lb.appendChild(lmain);
+      if (showAo && c.aoText){
+        const ao = document.createElement("div");
+        ao.className = "ao";
+        ao.style.fontSize = "6pt";
+        ao.textContent = c.aoText;
+        lb.appendChild(ao);
+      }
+
+      const rb = document.createElement("div");
+      rb.className = "rblock";
+      rb.style.fontSize = size + "pt";
+      rb.style.lineHeight = String(LEADING);
+      rb.innerHTML = c.blocks.map(b => {
+        const cls = b.cls === "coll" ? ' class="coll"' : b.cls === "series" ? ' class="series"' : "";
+        return b.lines.map(l => `<div${cls}>${esc(l)}</div>`).join("");
+      }).join("");
+
+      el.appendChild(lb);
+      el.appendChild(rb);
+      sheet.appendChild(el);
+    }
+    host.appendChild(sheet);
+  }
+
+  host.style.transform = `scale(${$("zoom").value})`;
+  $("status").textContent =
+    `${state.parsed.collNoRaw} — ${chosen.length} label${chosen.length === 1 ? "" : "s"}, ${sheetCount} sheet${sheetCount === 1 ? "" : "s"}`;
+
+  renderReview(tally);
+}
+
+function esc(s){ return String(s).replace(/[&<>"]/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[ch])); }
+
+function renderReview(t){
+  const notes = state.review.slice();
+  if (t.coll){
+    notes.push(t.coll === t.total
+      ? `The collection title is too long for the label at this size and is shortened on <b>every</b> label. Edit it above, or step the size down.`
+      : `<b>${t.coll}</b> label${t.coll > 1 ? "s" : ""} had the collection title shortened.`);
+  }
+  if (t.series) notes.push(`<b>${t.series}</b> label${t.series > 1 ? "s had a series/level line" : " had a series/level line"} shortened to fit.`);
+  if (t.folder) notes.push(`<b>${t.folder}</b> folder title${t.folder > 1 ? "s were" : " was"} shortened; dates and “(n of m)” were preserved.`);
+  const host = $("review");
+  host.innerHTML = notes.length
+    ? notes.map(n => `<div class="note">${n}</div>`).join("")
+    : '<span class="hint">Nothing needed adjusting.</span>';
+}
+
+/* ============================ pickers ============================ */
+function buildSlotGrid(){
+  const grid = $("slotgrid");
+  grid.innerHTML = "";
+  for (let i = 0; i < 20; i++){
+    const d = document.createElement("div");
+    d.textContent = i + 1;
+    if (i < state.startSlot) d.className = "used";
+    else if (i === state.startSlot) d.className = "first";
+    d.onclick = () => { state.startSlot = i; buildSlotGrid(); render(); };
+    grid.appendChild(d);
+  }
+}
+
+function buildPicker(){
+  const host = $("picker");
+  host.innerHTML = "";
+  if (!state.labels.length) return;
+  let curBox = null, list = null;
+  state.labels.forEach((l, i) => {
+    if (l.box !== curBox){
+      curBox = l.box;
+      const h = document.createElement("div");
+      h.className = "boxhead";
+      const span = document.createElement("span");
+      span.textContent = "Box " + curBox;
+      const b = document.createElement("button");
+      b.className = "link"; b.type = "button"; b.textContent = "toggle";
+      const boxVal = curBox;
+      b.onclick = () => {
+        const idxs = state.labels.map((x, j) => x.box === boxVal ? j : -1).filter(j => j >= 0);
+        const allOn = idxs.every(j => state.selected[j]);
+        idxs.forEach(j => state.selected[j] = !allOn);
+        syncPicker(); render();
+      };
+      h.appendChild(span); h.appendChild(b);
+      host.appendChild(h);
+    }
+    const row = document.createElement("div");
+    row.className = "item";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = !!state.selected[i]; cb.dataset.i = i;
+    cb.onchange = () => { state.selected[i] = cb.checked; render(); };
+    const sp = document.createElement("span");
+    sp.textContent = `f. ${l.folder} — ${l.entries[0].title}${l.entries.length > 1 ? ` (+${l.entries.length - 1})` : ""}`;
+    row.appendChild(cb); row.appendChild(sp);
+    host.appendChild(row);
+  });
+}
+function syncPicker(){
+  $("picker").querySelectorAll("input[type=checkbox]").forEach(cb => {
+    cb.checked = !!state.selected[+cb.dataset.i];
+  });
+}
+
+/* ============================ wiring ============================ */
+function loadText(text, name){
+  try{
+    const parsed = parseEAD(text);
+    const built = buildLabels(parsed);
+    state.parsed = parsed;
+    state.labels = built.labels;
+    state.review = built.review;
+    state.selected = built.labels.map(() => true);
+    state.levels = deriveLevelRows(built.labels);
+    state.budget = null;      // forces the default allocation on the next render
+    levelSig = "";
+    $("collNo").value = parsed.collNo;
+    $("collTitle").value = parsed.collTitle;
+    buildPicker();
+    render();
+  }catch(err){
+    state.parsed = null;
+    $("sheets").innerHTML = `<p class="empty-note">${esc(err.message)}</p>`;
+    $("status").textContent = name ? `Could not read ${name}` : "Could not read file";
+  }
+}
+
+function handleFile(f){
+  const r = new FileReader();
+  r.onload = () => loadText(r.result, f.name);
+  r.readAsText(f);
+}
+
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => {
+  e.preventDefault(); drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+};
+$("file").onchange = e => { if (e.target.files[0]) handleFile(e.target.files[0]); };
+
+["collNo","collTitle","fontFamily","fontSize","showAo","offX","offY","outline","mTop","mLeft","pCol","pRow","lW","lH","zoom"]
+  .forEach(id => { $(id).addEventListener("input", render); $(id).addEventListener("change", render); });
+
+$("mode").onchange = () => {
+  $("pickerWrap").style.display = $("mode").value === "select" ? "block" : "none";
+  render();
+};
+$("selAll").onclick  = () => { state.selected = state.labels.map(() => true);  syncPicker(); render(); };
+$("selNone").onclick = () => { state.selected = state.labels.map(() => false); syncPicker(); render(); };
+$("resetGeom").onclick = () => {
+  const d = { mTop:0.5, mLeft:0.15625, pCol:4.1875, pRow:1, lW:4, lH:0.875, offX:0.03, offY:0.03 };
+  Object.entries(d).forEach(([k, v]) => $(k).value = v);
+  render();
+};
+$("resetLevels").onclick = () => { if (state.levels){ state.budget = null; render(); } };
+$("printBtn").onclick = () => window.print();
+
+buildSlotGrid();
+</script>
+</body>
+</html>
